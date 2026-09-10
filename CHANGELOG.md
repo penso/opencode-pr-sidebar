@@ -31,12 +31,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Prevent the details modal's scrollbar from flashing during initial layout by
+  hiding its track while retaining keyboard and mouse-wheel scrolling.
 - Keep the sidebar slot's root mounted so the card appears when its initial
   asynchronous PR lookup completes.
 - Avoid displaying the merged or closed lifecycle twice in the card and details.
 
 ### Changed
 
+- Replace the plain-text details alert with a responsive, scrollable modal:
+  linked PR heading, colored status and diff totals, failures-first check rows,
+  activity timestamps, stale-data warnings, an inline refresh action, and a muted
+  `esc` close label matching OpenCode's command palette.
+- Keep only Details and Refresh buttons in the sidebar; the linked title opens
+  the PR, and Open PR / Copy PR URL remain available in the command palette.
+- Render sidebar actions as compact, theme-aware rectangular buttons with hover
+  feedback, a disabled refresh state while loading, and protection against
+  accidental activation from right-clicks or text-selection drags.
 - Convert the model and tests from JavaScript modules to TypeScript, and replace
   the UI's untyped state with a shared snapshot type.
 - Apply consistent Biome formatting and import ordering to source/configuration.

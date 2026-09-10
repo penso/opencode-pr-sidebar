@@ -74,6 +74,11 @@ test("checks aggregate statuses and conclusions without inventing required block
     [1, 7, 2, 2],
   )
   assert.equal(status.merge, "Ready to merge")
+  assert.deepEqual(status.checks.details[0], { name: "legacy", state: "ERROR", category: "failed" })
+  assert.deepEqual(
+    status.checks.details.map((check) => check.category),
+    [...Array(7).fill("failed"), ...Array(2).fill("pending"), "passed", "skipped", "skipped"],
+  )
   assert.equal(summarize(base).checks.details.length, 0)
   assert.equal(summarize({ ...base, isDraft: true }).lifecycle, "Draft")
 })

@@ -9,9 +9,23 @@ dependencies pin those APIs for type-checking; the plugin needs no build step.
 The card appears above Context when the working directory's current branch has a
 PR, including merged/closed PRs. It shows draft/lifecycle, review decision, GitHub
 merge eligibility, checks, PR additions/deletions and file count, update time,
-refresh time, and auto-merge status. The title is a terminal hyperlink. Open,
-Copy URL, Details and Refresh are clickable and available in the command palette.
+refresh time, and auto-merge status. The title is a terminal hyperlink. Details
+and Refresh are sidebar buttons. Open PR, Copy PR URL, Details, and Refresh remain
+available in the command palette.
 Opening and copying use macOS `open` and `pbcopy`.
+
+Details opens a live, theme-aware modal with Status, Changes, Checks, and Activity
+sections. Failed and pending checks appear first. Use Up/Down, Page Up/Down, or
+the mouse wheel to scroll long content; Escape closes the modal. Scrollbar tracks
+are hidden to avoid OpenTUI's initial-layout visibility flicker. Refresh updates
+the modal and sidebar together, and failed refreshes display a stale-data warning.
+
+Actions use padded OpenTUI boxes with theme-aware backgrounds and hover feedback,
+following [OpenCode's own confirmation controls](https://github.com/anomalyco/opencode/blob/v1.18.13/packages/tui/src/ui/dialog-confirm.tsx).
+The [TUI plugin API](https://github.com/anomalyco/opencode/blob/v1.18.13/packages/opencode/specs/tui-plugins.md)
+exposes theme tokens and command registration, but no public Button component.
+Refresh is dimmed while loading. Keyboard users can access every action through
+the command palette; the buttons do not capture typing from the composer.
 
 Git is checked every five seconds while the sidebar slot is mounted; GitHub is
 queried at most once per minute normally, or after active-session completion with

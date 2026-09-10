@@ -82,7 +82,17 @@ export function clean(value: unknown) {
 }
 
 export function summarize(pr: PullRequest) {
-  const checks = { passed: 0, failed: 0, pending: 0, skipped: 0, details: [] as string[] }
+  const checks = {
+    passed: 0,
+    failed: 0,
+    pending: 0,
+    skipped: 0,
+    details: [] as {
+      name: string
+      state: string
+      category: "passed" | "failed" | "pending" | "skipped"
+    }[],
+  }
   for (const check of pr.statusCheckRollup ?? []) {
     const state =
       (check.__typename === "StatusContext"
@@ -106,8 +116,14 @@ export function summarize(pr: PullRequest) {
           ? "failed"
           : "pending"
     checks[category]++
-    checks.details.push(`${clean(check.name ?? check.context)}: ${clean(state || "UNKNOWN")}`)
+    checks.details.push({
+      name: clean(check.name ?? check.context) || "Unnamed check",
+      state: clean(state || "UNKNOWN"),
+      category,
+    })
   }
+  const priority = { failed: 0, pending: 1, passed: 2, skipped: 3 }
+  checks.details.sort((a, b) => priority[a.category] - priority[b.category])
   const reviews: Record<string, string> = {
     APPROVED: "Approved",
     CHANGES_REQUESTED: "Changes requested",

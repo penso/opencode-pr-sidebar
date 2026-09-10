@@ -1,6 +1,8 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPluginModule } from "@opencode-ai/plugin/tui"
-import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
+import type { ScrollBoxRenderable } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/solid"
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { age, clean, createMonitor, run, type Snapshot, summarize } from "./model.ts"
 
 export default {
@@ -41,34 +43,224 @@ export default {
       }
     }
     function details() {
-      const value = pr()
-      if (!value) return
-      const status = summarize(value)
-      const Alert = api.ui.DialogAlert
-      api.ui.dialog.replace(() => (
-        <Alert
-          title={`PR #${value.number}`}
-          message={[
-            clean(value.title),
-            value.url,
-            `${clean(value.headRefName)} -> ${clean(value.baseRefName)}`,
-            value.state === "OPEN" ? `${status.lifecycle} | ${status.merge}` : status.lifecycle,
-            `Review: ${status.review}`,
-            `GitHub merge state: ${clean(value.mergeStateStatus)} / ${clean(value.mergeable)}`,
-            ...status.checks.details,
-            !status.checks.details.length
-              ? "No checks reported"
-              : "Check results include optional checks; GitHub determines merge eligibility.",
-            `+${value.additions} -${value.deletions} in ${value.changedFiles} files`,
-            value.autoMergeRequest ? "Auto-merge enabled" : "Auto-merge disabled",
-            `PR updated: ${value.updatedAt}`,
-            `Last successful refresh: ${new Date(state().fetchedAt).toLocaleString()}`,
-            state().error ? `STALE: ${state().error}` : "",
-          ]
-            .filter(Boolean)
-            .join("\n")}
-        />
-      ))
+      if (!pr()) return
+      api.ui.dialog.replace(() => <Details />)
+    }
+
+    function Details() {
+      let scroll: ScrollBoxRenderable | undefined
+      const dimensions = useTerminalDimensions()
+      const theme = () => api.theme.current
+      const status = () => {
+        const value = pr()
+        return value ? summarize(value) : null
+      }
+      const checkTone = {
+        passed: "success",
+        failed: "error",
+        pending: "warning",
+        skipped: "textMuted",
+      } as const
+      createEffect(() => {
+        api.ui.dialog.setSize(dimensions().width >= 100 ? "large" : "medium")
+      })
+      const disposeKeys = api.keymap.registerLayer({
+        mode: "modal",
+        bindings: [
+          { key: "up", cmd: () => scroll?.scrollBy(-1) },
+          { key: "down", cmd: () => scroll?.scrollBy(1) },
+          { key: "pageup", cmd: () => scroll?.scrollBy(-1, "viewport") },
+          { key: "pagedown", cmd: () => scroll?.scrollBy(1, "viewport") },
+          { key: "home", cmd: () => scroll?.scrollTo(0) },
+          { key: "end", cmd: () => scroll?.scrollTo(scroll.scrollHeight) },
+        ],
+      })
+      onCleanup(disposeKeys)
+      return (
+        <box paddingLeft={2} paddingRight={2} paddingBottom={1} gap={1}>
+          <box flexDirection="row" justifyContent="space-between" flexShrink={0}>
+            <text fg={theme().text}>
+              <b>Pull Request {pr() ? `#${pr()?.number}` : ""}</b>
+            </text>
+            <text fg={theme().textMuted} onMouseUp={() => api.ui.dialog.clear()}>
+              esc
+            </text>
+          </box>
+          <scrollbox
+            ref={(element) => {
+              scroll = element
+            }}
+            scrollX={false}
+            // OpenTUI's auto-visibility can flash while initial text wrapping settles.
+            scrollbarOptions={{ visible: false }}
+            height={Math.max(
+              3,
+              Math.min(
+                24 + (status()?.checks.details.length ?? 0) * 2,
+                Math.floor(dimensions().height * 0.75) - 7,
+              ),
+            )}
+            contentOptions={{ gap: 1 }}
+          >
+            <Show
+              when={pr()}
+              fallback={<text fg={theme().textMuted}>No pull request for the current branch.</text>}
+            >
+              <box flexShrink={0}>
+                <text fg={theme().primary}>
+                  <b>
+                    <a href={pr()?.url ?? ""}>{clean(pr()?.title)}</a>
+                  </b>
+                </text>
+                <text fg={theme().textMuted}>{pr()?.url.split("/").slice(3, 5).join("/")}</text>
+                <text fg={theme().text}>
+                  <span style={{ fg: theme().textMuted }}>Branch </span>
+                  {clean(pr()?.headRefName)} -&gt; {clean(pr()?.baseRefName)}
+                </text>
+              </box>
+              <Show when={state().error}>
+                <box
+                  backgroundColor={theme().backgroundElement}
+                  paddingLeft={1}
+                  paddingRight={1}
+                  flexShrink={0}
+                >
+                  <text fg={theme().warning}>
+                    <b>STALE DATA</b> / {state().error}
+                  </text>
+                  <text fg={theme().textMuted}>
+                    Showing the last successful result. Refresh to retry.
+                  </text>
+                </box>
+              </Show>
+              <box flexShrink={0}>
+                <text fg={theme().text}>
+                  <b>Status</b>
+                </text>
+                <text
+                  fg={
+                    pr()?.state === "MERGED"
+                      ? theme().success
+                      : pr()?.state === "CLOSED"
+                        ? theme().error
+                        : theme().primary
+                  }
+                >
+                  {status()?.lifecycle}
+                </text>
+                <Show when={pr()?.state === "OPEN"}>
+                  <text fg={theme()[status()?.tone ?? "textMuted"]}>
+                    <b>{status()?.merge}</b>
+                  </text>
+                </Show>
+                <text
+                  fg={
+                    pr()?.reviewDecision === "APPROVED"
+                      ? theme().success
+                      : pr()?.reviewDecision === "CHANGES_REQUESTED"
+                        ? theme().error
+                        : theme().textMuted
+                  }
+                >
+                  Review {status()?.review}
+                </text>
+                <Show when={pr()?.state === "OPEN"}>
+                  <text fg={theme().textMuted}>
+                    Auto-merge {pr()?.autoMergeRequest ? "Enabled" : "Off"}
+                  </text>
+                </Show>
+              </box>
+              <box flexShrink={0}>
+                <text fg={theme().text}>
+                  <b>Changes</b>
+                </text>
+                <text>
+                  <span style={{ fg: theme().diffAdded }}>
+                    <b>+{pr()?.additions.toLocaleString()}</b> added
+                  </span>
+                  <span style={{ fg: theme().textMuted }}> / </span>
+                  <span style={{ fg: theme().diffRemoved }}>
+                    <b>-{pr()?.deletions.toLocaleString()}</b> removed
+                  </span>
+                  <span style={{ fg: theme().textMuted }}> / {pr()?.changedFiles} files</span>
+                </text>
+              </box>
+              <box flexShrink={0}>
+                <text fg={theme().text}>
+                  <b>Checks</b>
+                </text>
+                <Show
+                  when={status()?.checks.details.length}
+                  fallback={
+                    <text fg={theme().textMuted}>
+                      No checks reported. This does not mean CI passed.
+                    </text>
+                  }
+                >
+                  <text>
+                    <span style={{ fg: theme().success }}>{status()?.checks.passed} passed</span>
+                    <span style={{ fg: theme().error }}> / {status()?.checks.failed} failed</span>
+                    <span style={{ fg: theme().warning }}>
+                      {" "}
+                      / {status()?.checks.pending} pending
+                    </span>
+                    <span style={{ fg: theme().textMuted }}>
+                      {" "}
+                      / {status()?.checks.skipped} skipped
+                    </span>
+                  </text>
+                  <box marginTop={1}>
+                    <For each={status()?.checks.details}>
+                      {(check) => (
+                        <text fg={theme().text}>
+                          <span style={{ fg: theme()[checkTone[check.category]] }}>
+                            [{check.category.toUpperCase()}]{" "}
+                          </span>
+                          {check.name}
+                          <span style={{ fg: theme().textMuted }}>
+                            {" "}
+                            / {check.state.toLowerCase().replaceAll("_", " ")}
+                          </span>
+                        </text>
+                      )}
+                    </For>
+                  </box>
+                  <text fg={theme().textMuted}>
+                    Includes optional checks. GitHub determines merge eligibility.
+                  </text>
+                </Show>
+              </box>
+              <box flexShrink={0}>
+                <text fg={theme().text}>
+                  <b>Activity</b>
+                </text>
+                <text fg={theme().textMuted}>
+                  PR updated {new Date(pr()?.updatedAt ?? NaN).toLocaleString()} (
+                  {age(pr()?.updatedAt, state().now)})
+                </text>
+                <text fg={state().error ? theme().warning : theme().textMuted}>
+                  Last checked {new Date(state().fetchedAt).toLocaleString()}
+                </text>
+                <Show when={pr()?.state === "OPEN"}>
+                  <text fg={theme().textMuted}>
+                    GitHub merge state {clean(pr()?.mergeStateStatus)} / {clean(pr()?.mergeable)}
+                  </text>
+                </Show>
+              </box>
+            </Show>
+          </scrollbox>
+          <box flexDirection="row" justifyContent="space-between" flexShrink={0}>
+            <text fg={theme().textMuted}>Up/Down / PgUp/PgDn to scroll</text>
+            <ActionButton
+              label={state().loading ? "Refreshing" : "Refresh"}
+              disabled={state().loading}
+              onPress={() => {
+                void monitor?.tick(true)
+              }}
+            />
+          </box>
+        </box>
+      )
     }
     api.keymap.registerLayer({
       commands: [
@@ -99,6 +291,49 @@ export default {
       void monitor?.tick()
     })
     api.lifecycle.onDispose(() => monitor?.stop())
+
+    function ActionButton(props: { label: string; onPress: () => void; disabled?: boolean }) {
+      const [hovered, setHovered] = createSignal(false)
+      const [pressed, setPressed] = createSignal(false)
+      const theme = () => api.theme.current
+      const highlighted = () => !props.disabled && hovered()
+      return (
+        <box
+          height={1}
+          flexShrink={0}
+          paddingLeft={1}
+          paddingRight={1}
+          backgroundColor={highlighted() ? theme().primary : theme().backgroundElement}
+          onMouseOver={() => setHovered(true)}
+          onMouseOut={() => {
+            setHovered(false)
+            setPressed(false)
+          }}
+          onMouseDown={(event) => {
+            if (event.button === 0 && !props.disabled) setPressed(true)
+          }}
+          onMouseUp={(event) => {
+            const activate = pressed() && event.button === 0 && !props.disabled
+            setPressed(false)
+            if (!activate || api.renderer.getSelection()?.getSelectedText()) return
+            event.stopPropagation()
+            props.onPress()
+          }}
+        >
+          <text
+            fg={
+              props.disabled
+                ? theme().textMuted
+                : highlighted()
+                  ? theme().selectedListItemText
+                  : theme().text
+            }
+          >
+            {props.label}
+          </text>
+        </box>
+      )
+    }
 
     function Card() {
       const theme = () => api.theme.current
@@ -190,36 +425,17 @@ export default {
               {state().error}
             </text>
           </Show>
-          <box flexDirection="row" gap={2}>
+          <box flexDirection="row" flexWrap="wrap" gap={1}>
             <Show when={pr()}>
-              <text
-                fg={theme().primary}
-                onMouseUp={() => {
-                  void open()
-                }}
-              >
-                Open
-              </text>
-              <text
-                fg={theme().primary}
-                onMouseUp={() => {
-                  void copy()
-                }}
-              >
-                Copy URL
-              </text>
-              <text fg={theme().primary} onMouseUp={details}>
-                Details
-              </text>
+              <ActionButton label="Details" onPress={details} />
             </Show>
-            <text
-              fg={theme().primary}
-              onMouseUp={() => {
+            <ActionButton
+              label="Refresh"
+              disabled={state().loading}
+              onPress={() => {
                 void monitor?.tick(true)
               }}
-            >
-              Refresh
-            </text>
+            />
           </box>
         </box>
       )
