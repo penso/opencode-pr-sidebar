@@ -5,6 +5,7 @@ import {
   clean,
   createMonitor,
   errorKind,
+  openBrowser,
   type PullRequest,
   parsePR,
   type Snapshot,
@@ -29,6 +30,79 @@ const base: PullRequest = {
   statusCheckRollup: [],
 }
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+test("browser opening falls back without launching in SSH, headless, or unsupported sessions", async () => {
+  for (const [platform, env, expected] of [
+    ["darwin", { SSH_CONNECTION: "client server" }, /SSH session/],
+    ["linux", { SSH_CLIENT: "client", DISPLAY: ":0" }, /SSH session/],
+    ["darwin", { SSH_TTY: "/dev/pts/0" }, /SSH session/],
+    ["linux", {}, /No graphical display/],
+    ["win32", {}, /unavailable/],
+  ] satisfies [NodeJS.Platform, NodeJS.ProcessEnv, RegExp][]) {
+    const message = await openBrowser(base.url, "/repo", new AbortController().signal, {
+      platform,
+      env,
+      execute: async () => assert.fail("must not launch a browser"),
+    })
+    assert.match(message ?? "", expected)
+  }
+})
+
+test("local browser launches use the platform launcher and preserve the full URL", async () => {
+  for (const [platform, env, launcher] of [
+    ["darwin", {}, "open"],
+    ["linux", { DISPLAY: ":0" }, "xdg-open"],
+    ["linux", { WAYLAND_DISPLAY: "wayland-0" }, "xdg-open"],
+  ] satisfies [NodeJS.Platform, NodeJS.ProcessEnv, string][]) {
+    const signal = new AbortController().signal
+    let calls = 0
+    const message = await openBrowser(base.url, "/repo", signal, {
+      platform,
+      env,
+      execute: async (...args) => {
+        calls++
+        assert.deepEqual(args, [launcher, [base.url], "/repo", signal])
+        return ""
+      },
+    })
+    assert.equal(calls, 1)
+    assert.equal(message, undefined)
+  }
+})
+
+test("missing, failed, or timed-out browser launchers return a URL fallback message", async () => {
+  for (const failure of [{ code: "ENOENT" }, { code: 1 }, { killed: true }]) {
+    const message = await openBrowser(base.url, "/repo", new AbortController().signal, {
+      platform: "darwin",
+      env: {},
+      execute: async () => {
+        throw failure
+      },
+    })
+    assert.match(message ?? "", /Could not launch a browser.*URL below/)
+  }
+})
+
+test("disposing the plugin does not launch a browser or show a fallback", async () => {
+  const controller = new AbortController()
+  assert.equal(
+    await openBrowser(base.url, "/repo", controller.signal, {
+      platform: "darwin",
+      env: {},
+      execute: async () => {
+        controller.abort()
+        throw new Error("aborted")
+      },
+    }),
+    undefined,
+  )
+  assert.equal(
+    await openBrowser(base.url, "/repo", controller.signal, {
+      execute: async () => assert.fail("must not launch after disposal"),
+    }),
+    undefined,
+  )
+})
 
 test("merge readiness uses combined state, not conflict detection alone", () => {
   for (const [patch, expected] of [

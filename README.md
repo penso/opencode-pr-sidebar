@@ -12,10 +12,16 @@ merge eligibility, checks, PR additions/deletions and file count, update time,
 refresh time, and auto-merge status. The title is a terminal hyperlink. Details
 and Refresh are sidebar buttons. Open PR, Copy PR URL, Details, and Refresh remain
 available in the command palette.
-Opening and copying use macOS `open` and `pbcopy`.
+Clicking the title (or using Open PR) launches macOS `open` or Linux `xdg-open`.
+Over SSH (`SSH_CONNECTION`, `SSH_CLIENT`, or `SSH_TTY`), on headless Linux, or on
+other platforms, it opens Details with the full URL instead. Missing launchers,
+launch errors, and timeouts also open Details with an explanatory message. A
+successful launcher exit cannot confirm that a browser window actually appeared;
+Details always provides the URL for manually opening it. Copying uses macOS `pbcopy`.
 
-Details opens a live, theme-aware modal with Status, Changes, Checks, and Activity
-sections. Failed and pending checks appear first. Use Up/Down, Page Up/Down, or
+Details opens a live, theme-aware modal with the full, selectable PR URL (wrapped
+on narrow terminals), plus Status, Changes, Checks, and Activity sections.
+Failed and pending checks appear first. Use Up/Down, Page Up/Down, or
 the mouse wheel to scroll long content; Escape closes the modal. Scrollbar tracks
 are hidden to avoid OpenTUI's initial-layout visibility flicker. Refresh updates
 the modal and sidebar together, and failed refreshes display a stale-data warning.
@@ -47,6 +53,9 @@ Scope is GitHub repositories supported by `gh`, not GitLab/Bitbucket. The local
 branch must match the PR head branch; detached heads and differently named local
 tracking branches do not display a PR. Remote-server attachment is not supported:
 commands execute on the TUI machine. Data is held in memory only.
+Running OpenCode itself over SSH is supported; Git and authenticated `gh` must be
+available on that remote machine. Browser fallback detection uses the TUI process's
+environment; multiplexers that strip SSH variables may prevent SSH detection.
 
 ## Reload and verification
 
@@ -92,5 +101,8 @@ are modified by `just install`.
 
 TUI smoke checks: confirm the current PR card, open PR status details, refresh,
 resize the terminal, hide/show the sidebar, and verify no-PR/non-Git directories.
+Check that Details shows the entire URL on narrow terminals. Over SSH, clicking
+the title and using Open PR should show Details without launching a remote browser.
+Locally, a missing or failing browser launcher should show the same URL fallback.
 A stable root box in the slot is important: returning an initially empty `Show`
 prevented the slot from rendering when the asynchronous lookup completed.

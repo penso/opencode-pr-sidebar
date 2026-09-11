@@ -71,6 +71,30 @@ export function run(
   })
 }
 
+export async function openBrowser(
+  url: string,
+  cwd: string,
+  signal: AbortSignal,
+  {
+    env = process.env,
+    platform = process.platform,
+    execute = run,
+  }: { env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform; execute?: typeof run } = {},
+): Promise<string | undefined> {
+  if (signal.aborted) return
+  if (env.SSH_CONNECTION || env.SSH_CLIENT || env.SSH_TTY)
+    return "SSH session detected. Open the URL below in your local browser."
+  if (platform === "linux" && !env.DISPLAY && !env.WAYLAND_DISPLAY)
+    return "No graphical display detected. Open the URL below in your browser."
+  const launcher = platform === "darwin" ? "open" : platform === "linux" ? "xdg-open" : undefined
+  if (!launcher) return "Browser opening is unavailable here. Open the URL below in your browser."
+  try {
+    await execute(launcher, [url], cwd, signal)
+  } catch {
+    if (!signal.aborted) return "Could not launch a browser. Open the URL below in your browser."
+  }
+}
+
 export function clean(value: unknown) {
   return (
     String(value ?? "")

@@ -3,7 +3,7 @@ import type { TuiPluginModule } from "@opencode-ai/plugin/tui"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js"
-import { age, clean, createMonitor, run, type Snapshot, summarize } from "./model.ts"
+import { age, clean, createMonitor, openBrowser, run, type Snapshot, summarize } from "./model.ts"
 
 export default {
   id: "penso.pr-sidebar",
@@ -24,12 +24,15 @@ export default {
     async function open() {
       const value = pr()
       if (!value) return
-      try {
-        if (process.platform !== "darwin") throw new Error("Unsupported platform")
-        await run("open", [value.url], directory(), api.lifecycle.signal)
-      } catch {
-        toast("Could not open PR in your browser", "error")
-      }
+      const cwd = directory()
+      const message = await openBrowser(value.url, cwd, api.lifecycle.signal)
+      if (
+        message &&
+        !api.lifecycle.signal.aborted &&
+        directory() === cwd &&
+        pr()?.url === value.url
+      )
+        details(message)
     }
     async function copy() {
       const value = pr()
@@ -42,12 +45,12 @@ export default {
         toast("Could not copy PR URL", "error")
       }
     }
-    function details() {
+    function details(message = "") {
       if (!pr()) return
-      api.ui.dialog.replace(() => <Details />)
+      api.ui.dialog.replace(() => <Details message={message} />)
     }
 
-    function Details() {
+    function Details(props: { message: string }) {
       let scroll: ScrollBoxRenderable | undefined
       const dimensions = useTerminalDimensions()
       const theme = () => api.theme.current
@@ -112,7 +115,12 @@ export default {
                     <a href={pr()?.url ?? ""}>{clean(pr()?.title)}</a>
                   </b>
                 </text>
-                <text fg={theme().textMuted}>{pr()?.url.split("/").slice(3, 5).join("/")}</text>
+                <Show when={props.message}>
+                  <text fg={theme().warning}>{props.message}</text>
+                </Show>
+                <text fg={theme().primary} wrapMode="char">
+                  <a href={pr()?.url ?? ""}>{pr()?.url}</a>
+                </text>
                 <text fg={theme().text}>
                   <span style={{ fg: theme().textMuted }}>Branch </span>
                   {clean(pr()?.headRefName)} -&gt; {clean(pr()?.baseRefName)}
@@ -266,7 +274,7 @@ export default {
       commands: [
         { name: "penso.pr.open", title: "Open PR on GitHub", run: open },
         { name: "penso.pr.copy", title: "Copy PR URL", run: copy },
-        { name: "penso.pr.details", title: "PR status details", run: details },
+        { name: "penso.pr.details", title: "PR status details", run: () => details() },
         {
           name: "penso.pr.refresh",
           title: "Refresh PR status",
@@ -368,7 +376,9 @@ export default {
             <box>
               <text
                 fg={theme().primary}
-                onMouseUp={() => {
+                onMouseUp={(event) => {
+                  if (event.button !== 0 || api.renderer.getSelection()?.getSelectedText()) return
+                  event.stopPropagation()
                   void open()
                 }}
               >
@@ -427,7 +437,7 @@ export default {
           </Show>
           <box flexDirection="row" flexWrap="wrap" gap={1}>
             <Show when={pr()}>
-              <ActionButton label="Details" onPress={details} />
+              <ActionButton label="Details" onPress={() => details()} />
             </Show>
             <ActionButton
               label="Refresh"
