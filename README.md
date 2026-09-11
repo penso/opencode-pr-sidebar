@@ -50,6 +50,8 @@ merge eligibility, checks, PR additions/deletions and file count, update time,
 refresh time, and auto-merge status. The title is a terminal hyperlink. Details
 and Refresh are sidebar buttons. Open PR, Copy PR URL, Details, and Refresh remain
 available in the command palette.
+Click the Pull Request header to collapse or expand the card, like OpenCode's
+Todos section. It starts expanded and keeps refreshing while collapsed.
 Clicking the title (or using Open PR) launches macOS `open` or Linux `xdg-open`.
 Over SSH (`SSH_CONNECTION`, `SSH_CLIENT`, or `SSH_TTY`), on headless Linux, or on
 other platforms, it opens Details with the full URL instead. Missing launchers,

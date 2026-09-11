@@ -344,6 +344,7 @@ export default {
     }
 
     function Card() {
+      const [expanded, setExpanded] = createSignal(true)
       const theme = () => api.theme.current
       const status = () => {
         const value = pr()
@@ -369,84 +370,99 @@ export default {
       // The slot registry needs a stable root even before the first lookup completes.
       return (
         <box visible={Boolean(pr() || state().error)} gap={1} flexShrink={0}>
-          <text fg={theme().text}>
-            <b>Pull Request</b>
-          </text>
-          <Show when={pr()}>
-            <box>
-              <text
-                fg={theme().primary}
-                onMouseUp={(event) => {
-                  if (event.button !== 0 || api.renderer.getSelection()?.getSelectedText()) return
-                  event.stopPropagation()
-                  void open()
-                }}
-              >
-                <b>#{pr()?.number}</b> <a href={pr()?.url ?? ""}>{clean(pr()?.title)}</a>
-              </text>
-              <text fg={theme().textMuted}>
-                {clean(pr()?.headRefName)} -&gt; {clean(pr()?.baseRefName)}
-              </text>
-            </box>
-            <box>
-              <text
-                fg={
-                  pr()?.state === "MERGED"
-                    ? theme().success
-                    : pr()?.state === "CLOSED"
-                      ? theme().error
-                      : theme().text
-                }
-              >
-                {status()?.lifecycle}
-              </text>
-              <Show when={pr()?.state === "OPEN"}>
-                <text fg={theme()[status()?.tone ?? "textMuted"]}>
-                  <b>{status()?.merge}</b>
-                </text>
-              </Show>
-              <text fg={theme().textMuted}>Review: {status()?.review}</text>
-              <text fg={status()?.checks.failed ? theme().warning : theme().textMuted}>
-                {status()?.checks.details.length
-                  ? `Checks: ${status()?.checks.passed} passed / ${status()?.checks.failed} failed / ${status()?.checks.pending} pending${status()?.checks.skipped ? ` / ${status()?.checks.skipped} skipped` : ""}`
-                  : "No checks reported"}
-              </text>
-              <Show when={pr()?.autoMergeRequest}>
-                <text fg={theme().primary}>Auto-merge enabled</text>
-              </Show>
-            </box>
-            <box>
-              <text>
-                <span style={{ fg: theme().diffAdded }}>+{pr()?.additions.toLocaleString()}</span>{" "}
-                <span style={{ fg: theme().diffRemoved }}>-{pr()?.deletions.toLocaleString()}</span>
-                <span style={{ fg: theme().textMuted }}> / {pr()?.changedFiles} files</span>
-              </text>
-              <text fg={theme().textMuted}>Updated {age(pr()?.updatedAt, state().now)}</text>
-              <text fg={theme().textMuted}>
-                {state().loading
-                  ? "Refreshing..."
-                  : `Checked ${age(state().fetchedAt, state().now)}`}
-              </text>
-            </box>
-          </Show>
-          <Show when={state().error}>
-            <text fg={theme().warning}>
-              {pr() ? "STALE: " : ""}
-              {state().error}
+          <box
+            flexDirection="row"
+            gap={1}
+            onMouseDown={(event) => {
+              if (event.button !== 0) return
+              event.stopPropagation()
+              setExpanded((value) => !value)
+            }}
+          >
+            <text fg={theme().text}>{expanded() ? "\u25bc" : "\u25b6"}</text>
+            <text fg={theme().text}>
+              <b>Pull Request</b>
             </text>
-          </Show>
-          <box flexDirection="row" flexWrap="wrap" gap={1}>
-            <Show when={pr()}>
-              <ActionButton label="Details" onPress={() => details()} />
-            </Show>
-            <ActionButton
-              label="Refresh"
-              disabled={state().loading}
-              onPress={() => {
-                void monitor?.tick(true)
-              }}
-            />
           </box>
+          <Show when={expanded()}>
+            <Show when={pr()}>
+              <box>
+                <text
+                  fg={theme().primary}
+                  onMouseUp={(event) => {
+                    if (event.button !== 0 || api.renderer.getSelection()?.getSelectedText()) return
+                    event.stopPropagation()
+                    void open()
+                  }}
+                >
+                  <b>#{pr()?.number}</b> <a href={pr()?.url ?? ""}>{clean(pr()?.title)}</a>
+                </text>
+                <text fg={theme().textMuted}>
+                  {clean(pr()?.headRefName)} -&gt; {clean(pr()?.baseRefName)}
+                </text>
+              </box>
+              <box>
+                <text
+                  fg={
+                    pr()?.state === "MERGED"
+                      ? theme().success
+                      : pr()?.state === "CLOSED"
+                        ? theme().error
+                        : theme().text
+                  }
+                >
+                  {status()?.lifecycle}
+                </text>
+                <Show when={pr()?.state === "OPEN"}>
+                  <text fg={theme()[status()?.tone ?? "textMuted"]}>
+                    <b>{status()?.merge}</b>
+                  </text>
+                </Show>
+                <text fg={theme().textMuted}>Review: {status()?.review}</text>
+                <text fg={status()?.checks.failed ? theme().warning : theme().textMuted}>
+                  {status()?.checks.details.length
+                    ? `Checks: ${status()?.checks.passed} passed / ${status()?.checks.failed} failed / ${status()?.checks.pending} pending${status()?.checks.skipped ? ` / ${status()?.checks.skipped} skipped` : ""}`
+                    : "No checks reported"}
+                </text>
+                <Show when={pr()?.autoMergeRequest}>
+                  <text fg={theme().primary}>Auto-merge enabled</text>
+                </Show>
+              </box>
+              <box>
+                <text>
+                  <span style={{ fg: theme().diffAdded }}>+{pr()?.additions.toLocaleString()}</span>{" "}
+                  <span style={{ fg: theme().diffRemoved }}>
+                    -{pr()?.deletions.toLocaleString()}
+                  </span>
+                  <span style={{ fg: theme().textMuted }}> / {pr()?.changedFiles} files</span>
+                </text>
+                <text fg={theme().textMuted}>Updated {age(pr()?.updatedAt, state().now)}</text>
+                <text fg={theme().textMuted}>
+                  {state().loading
+                    ? "Refreshing..."
+                    : `Checked ${age(state().fetchedAt, state().now)}`}
+                </text>
+              </box>
+            </Show>
+            <Show when={state().error}>
+              <text fg={theme().warning}>
+                {pr() ? "STALE: " : ""}
+                {state().error}
+              </text>
+            </Show>
+            <box flexDirection="row" flexWrap="wrap" gap={1}>
+              <Show when={pr()}>
+                <ActionButton label="Details" onPress={() => details()} />
+              </Show>
+              <ActionButton
+                label="Refresh"
+                disabled={state().loading}
+                onPress={() => {
+                  void monitor?.tick(true)
+                }}
+              />
+            </box>
+          </Show>
         </box>
       )
     }
