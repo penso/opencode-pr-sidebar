@@ -1,5 +1,9 @@
 # PR sidebar
 
+[![CI](https://github.com/penso/opencode-pr-sidebar/actions/workflows/ci.yml/badge.svg)](https://github.com/penso/opencode-pr-sidebar/actions/workflows/ci.yml)
+
+CI checks formatting, lint, types, and tests on Node 24 for every push and pull request.
+
 Read-only GitHub pull request sidebar for the OpenCode TUI, previously verified
 with OpenCode 1.18.13 on macOS. Other OpenCode versions are not verified.
 Register globally in `~/.config/opencode/tui.json`; no repository configuration needed.
