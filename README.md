@@ -1,10 +1,44 @@
 # PR sidebar
 
-Global, read-only OpenCode TUI plugin, verified with OpenCode 1.18.13 on macOS.
-Registered in `~/.config/opencode/tui.json`; no repository configuration needed.
+Read-only GitHub pull request sidebar for the OpenCode TUI, previously verified
+with OpenCode 1.18.13 on macOS. Other OpenCode versions are not verified.
+Register globally in `~/.config/opencode/tui.json`; no repository configuration needed.
 Uses the existing authenticated GitHub CLI, with no additional credentials or
 model calls. OpenCode supplies its Solid/OpenTUI runtime. The local development
 dependencies pin those APIs for type-checking; the plugin needs no build step.
+
+## Installation
+
+Requires OpenCode with the TUI plugin API, Git, and an authenticated
+[GitHub CLI](https://cli.github.com/) (`gh auth login`). Git and `gh` must be on
+the TUI process's `PATH`.
+
+Clone this repository into the global OpenCode configuration directory:
+
+```sh
+git clone https://github.com/penso/opencode-pr-sidebar.git ~/.config/opencode/pr-sidebar
+```
+
+Add the entry below to `~/.config/opencode/tui.json`, preserving any existing
+settings and plugin entries:
+
+```json
+{
+  "$schema": "https://opencode.ai/tui.json",
+  "plugin": ["./pr-sidebar/index.tsx"]
+}
+```
+
+The path is relative to `tui.json`; adjust it if you clone elsewhere. Register
+the TSX file directly, not the directory or an npm package name. This repository
+is a local-file plugin, not an npm-distributed package (`private: true` prevents
+accidental npm publication, not a public GitHub repository). Development
+dependencies are only needed for the checks below.
+
+Quit and restart OpenCode, open a GitHub-backed working tree on a PR branch, and
+use the command palette's Show sidebar if needed.
+
+## Behavior
 
 The card appears above Context when the working directory's current branch has a
 PR, including merged/closed PRs. It shows draft/lifecycle, review decision, GitHub
@@ -51,7 +85,8 @@ this is a polled status display, not authorization to merge.
 
 Scope is GitHub repositories supported by `gh`, not GitLab/Bitbucket. The local
 branch must match the PR head branch; detached heads and differently named local
-tracking branches do not display a PR. Remote-server attachment is not supported:
+tracking branches do not display a PR and may show a lookup error instead.
+Remote-server attachment is not supported:
 commands execute on the TUI machine. Data is held in memory only.
 Running OpenCode itself over SSH is supported; Git and authenticated `gh` must be
 available on that remote machine. Browser fallback detection uses the TUI process's
@@ -96,6 +131,10 @@ Third-party declaration files are skipped by TypeScript, but all plugin source
 and tests are checked. Dependencies are pinned in `package.json` and
 `package-lock.json`; neither global OpenCode dependencies nor its configuration
 are modified by `just install`.
+
+The current lockfile resolves packages through the Microsoft-hosted
+`ms-feed-25.pkgs.visualstudio.com` npm mirror, not `registry.npmjs.org`, and uses
+SHA-1 integrity hashes. A clean development install requires access to that mirror.
 
 ### Manual TUI checks
 
